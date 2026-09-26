@@ -1,7 +1,7 @@
 ---
 name: ci-cd
 description: "CI/CD 流水线：GitHub Actions 工作流、四阶段门禁自动化、发布自动化、制品管理。组合 github-pr-workflow + github-repo-management + github-code-review。"
-version: "1.0.0"
+version: "1.1.0"
 author: Hermes Agent
 license: MIT
 platforms: [windows, linux, macos]
@@ -11,6 +11,7 @@ metadata:
     category: devops
     skill_type: tool
     requires_toolsets: [terminal, file]
+    local_override: true
 ---
 
 # CI/CD Skill
@@ -129,12 +130,35 @@ jobs:
 # Dependabot PR 自动合并（通过门禁后）
 ```
 
+### 4. S5 发布门禁校验（来自 Profile release_checklist）
+
+**必须全部通过，任一失败即阻断**：
+
+| 校验项 | 标准 | 失败处理 |
+|--------|------|----------|
+| 版本号语义化 | MAJOR.MINOR.PATCH，符合语义化版本规范 | 阻断，要求修正 |
+| CHANGELOG 生成 | `CHANGELOG.md` 从 Conventional Commits 自动生成 | 阻断，要求生成 |
+| 所有测试通过 | 单元/集成/E2E/GUI 全层测试 100% 通过 | 阻断，修复失败测试 |
+| 覆盖率 ≥90% | `pytest --cov --cov-fail-under=90` | 阻断，补全测试 |
+| 安全扫描无高危 | `uv-audit` / `bandit` / `trivy` 无高危 | 阻断，修复漏洞 |
+| 依赖审计无高危 | `uv-audit` 无高危漏洞 | 阻断，升级/替换依赖 |
+| DB 迁移回滚就绪 | 迁移脚本含双向操作，回滚测试通过 | 阻断，补全回滚脚本 |
+| 灰度发布策略 | 10% → 50% → 100% 流量切分方案就绪 | 阻断，提供策略文档 |
+| 监控告警规则更新 | 新版本监控指标/告警已同步 | 阻断，更新监控配置 |
+
+**门禁命令**：
+```bash
+hermes gate-check s5
+# 期望：PASS
+```
+
 ## Output
 
 - `.github/workflows/sdlc-pipeline.yml`
 - `.github/workflows/release.yml`
 - `.github/dependabot.yml`
 - Kanban：`artifact: CI_CD_CONFIG`
+- S5 发布门禁校验记录
 
 ## Verification
 
@@ -142,12 +166,17 @@ jobs:
 - 推送触发正常执行
 - 四阶段门禁在 CI 中同步运行
 - 发布流程端到端验证通过
+- S5 发布门禁校验 PASS
 
 ## Pitfalls
 
 1. **不要在 CI 中硬编码密钥**：用 GitHub Secrets / OIDC
 2. **不要跳过门禁**：CI 必须跑完整 `make pipeline`
 3. **不要并行有依赖的阶段**：S1→S2→S3→S4 串行，S4 内部并行
+4. **忘记数据库回滚脚本** → 必须双向迁移
+5. **灰度策略缺失** → 必须有流量切分方案
+6. **监控未更新** → 新版本无观测性
+7. **版本号不规范** → 语义化版本是硬性要求
 
 ## References
 
